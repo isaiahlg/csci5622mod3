@@ -1,0 +1,146 @@
+---
+title: "DecisionTrees"
+author: "IsaiahLG"
+date: "3/8/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Import Data
+
+### Using the package rdhs
+```{r}
+# import necessary library
+library(rdhs)
+
+# set credentials for accessing DHS API
+set_rdhs_config(email = "isaiah.lyons-galante@colorado.edu",
+                project = "Machine Learning Class Project")
+
+# download actual datasets
+downloads <- get_datasets("SLHR7AFL.ZIP")
+
+# read in the dataset
+sl19 <- readRDS(downloads$SLHR7AFL)
+
+# get the variable labels for all column headers
+var_labels <- get_variable_labels(sl19)
+# head(var_labels) # 3455 rows now, just two columns, variable and description
+
+# export data and labels to CSV for visual inspection and usability in other programs
+saveRDS(var_labels, "./data/var_labels.rds")
+saveRDS(sl19, "./data/sl19.rds")
+```
+
+## Filter for just columns of interest
+```{r}
+# read in RDS
+sl19 <- readRDS("./data/sl19.rds")
+var_labels <- readRDS("./data/var_labels.rds")
+
+# asset columns of interest
+demCols <- c("hv010","hv011","hv012","hv014","hv216")
+assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
+targetCol <- c("hv270a")
+allCols <- c(demCols, assetCols, targetCol)
+
+# filter
+sl19dtree <- sl19[,allCols]
+varsDtree <- var_labels[allCols,]
+
+# export to RDS
+saveRDS(sl19dtree, "./data/sl19dtree.rds")
+saveRDS(varsDtree, "./data/varsDtree.rds")
+```
+
+## Prep data for DTree
+```{r}
+# reread in object
+sl19dtree <- readRDS("./data/sl19dtree.rds")
+
+# columns to clean up values from:
+# hv246a (98)
+# hv246b (98)
+# hv246d (98)
+# hv246e (98)
+# hv246f (98)
+# looks like 95 or more is missing / unknown
+# copy data frame to be manipulated
+df <- sl19dtree
+df <- na.omit(df) # remove NA values
+
+# filter out "unknown" or "missing" values from survey
+library(dplyr)
+df <- df %>% filter(
+  hv246a < 95 &
+  hv246b < 95 &
+  hv246c < 95 &
+  hv246d < 95 &
+  hv246e < 95 &
+  hv246f < 95
+)
+
+
+# convert categorical columns to factors
+factorCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e", "hv247","hv270a")
+df <- df %>% mutate_at(factorCols, as.factor)
+
+summary(df)
+
+# export clean record data format
+saveRDS(df, "./data/sl19dtreeClean.rds")
+```
+
+## Split Data into Balanced Training and Testing Samples
+```{r}
+# reread in object
+sl19dtreeClean <- readRDS("./data/sl19dtreeClean.rds")
+df <- sl19dtreeClean
+
+library(dplyr)
+# rename target variable to "label"
+colnames(df)[colnames(df) == "hv270a"] ="label"
+
+# ensure data is balanced
+summary(df$label)
+plot(df$label, main="Wealth Index", col="purple") # region
+
+
+# split into test and train data
+f = 4/5
+n = nrow(df)
+set.seed(44)
+
+# random sample without replacement
+train <- sample(n, n*f, replace=FALSE)
+traindf <- df[train,]
+testdf <- df[-train,]
+
+# ensure it's still balanced
+plot(traindf$label, main="Wealth Index of Training Sample", col="purple") # region
+plot(testdf$label, main="Wealth Index of Testing Sample", col="purple") # region
+
+# remove target variable from testdf
+target <- testdf$label
+testdf <- testdf[,!names(df) %in% targetCol]
+
+# export samples
+saveRDS(testdf, "./data/testdf.rds")
+saveRDS(traindf, "./data/traindf.rds")
+```
+
+## Decision Tree Analysis
+```{r}
+# read in training data frame
+traindf <- readRDS("./data/traindf.rds")
+
+# load rpart for dtree
+library(rpart)
+
+# run d-tree with all variables
+dt <- rpart(label ~ ., data = traindf)
+```
