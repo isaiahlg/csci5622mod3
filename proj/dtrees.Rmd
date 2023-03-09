@@ -124,10 +124,6 @@ testdf <- df[-train,]
 plot(traindf$label, main="Wealth Index of Training Sample", col="purple") # region
 plot(testdf$label, main="Wealth Index of Testing Sample", col="purple") # region
 
-# remove target variable from testdf
-target <- testdf$label
-testdf <- testdf[,!names(df) %in% targetCol]
-
 # export samples
 saveRDS(testdf, "./data/testdf.rds")
 saveRDS(traindf, "./data/traindf.rds")
@@ -142,5 +138,46 @@ traindf <- readRDS("./data/traindf.rds")
 library(rpart)
 
 # run d-tree with all variables
-dt <- rpart(label ~ ., data = traindf)
+dt <- rpart(label ~ ., data = traindf, method="class")
+summary(dt)
+
+# determine the optimal cp
+plotcp(dt)
+
+# test on test df
+testdf <- readRDS("./data/testdf.rds")
+
+# remove target variable from testdf
+target <- testdf$label
+testdf <- testdf[,!names(df) %in% targetCol]
+
+# pred test labels
+pred = predict(dt, testdf, type = "class")
+
+# get confusion matrix
+library(caret)
+caret::confusionMatrix(pred, target, positive="true")
+
+# plot results
+library(rattle)
+rattle::fancyRpartPlot(dt, main="Decision Tree", cex=.5)
+```
+
+## 5-Fold Cross Validation
+```{r}
+library(caret)
+
+# specify cross validation method
+ctrl <- trainControl(method = "cv", number = 5)
+
+# run dtree multiple times
+dt5 <- train(label ~ ., data = traindf, method="rpart", trControl = ctrl)
+print(dt5)
+
+# retry d-tree with outputted c
+dt2 <- rpart(label ~ ., data = traindf, method="class", cp = 0.03441519)
+plotcp(dt2)
+pred2 = predict(dt2, testdf, type = "class")
+confusionMatrix(pred2, target, positive="true")
+fancyRpartPlot(dt, main="Decision Tree", cex=.5)
 ```
