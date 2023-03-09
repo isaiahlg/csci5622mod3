@@ -107,7 +107,7 @@ colnames(df)[colnames(df) == "hv270a"] ="label"
 
 # ensure data is balanced
 summary(df$label)
-plot(df$label, main="Wealth Index", col="purple") # region
+plot(df$label, main="Wealth Index of All Data", xlab="Wealth Index Group", ylab="# of Households", col="purple") # region
 
 
 # split into test and train data
@@ -121,8 +121,8 @@ traindf <- df[train,]
 testdf <- df[-train,]
 
 # ensure it's still balanced
-plot(traindf$label, main="Wealth Index of Training Sample", col="purple") # region
-plot(testdf$label, main="Wealth Index of Testing Sample", col="purple") # region
+plot(traindf$label, main="Wealth Index of Training Sample", xlab="Wealth Index Group", ylab="# of Households", col="darkgreen") # region
+plot(testdf$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
 
 # export samples
 saveRDS(testdf, "./data/testdf.rds")
