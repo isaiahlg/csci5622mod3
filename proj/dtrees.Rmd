@@ -73,6 +73,10 @@ sl19dtree <- readRDS("./data/sl19dtree.rds")
 df <- sl19dtree
 df <- na.omit(df) # remove NA values
 
+library(haven)
+df <- zap_labels(df)
+df <- df %>% mutate_at(allCols, as.integer)
+
 # filter out "unknown" or "missing" values from survey
 library(dplyr)
 df <- df %>% filter(

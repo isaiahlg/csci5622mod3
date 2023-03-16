@@ -1,0 +1,156 @@
+---
+title: "NaiveBayes"
+author: "IsaiahLG"
+date: "3/15/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Import Data
+
+## Filter for just columns of interest
+```{r}
+# read in RDS
+sl19 <- readRDS("./data/sl19small.rds")
+
+# asset columns of interest
+demCols <- c("hv010","hv011","hv012","hv014","hv216")
+assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246d","hv246e","hv246f","hv247")
+targetCol <- c("hv270a")
+allCols <- c(demCols, assetCols, targetCol)
+
+# filter
+sl19nbayes <- sl19[,allCols]
+
+# export to RDS
+saveRDS(sl19nbayes, "./data/sl19nbayes.rds")
+```
+
+## Prep data for Naive Bayes by Cleaning and Converting to Factor
+```{r}
+# reread in object
+sl19nbayes <- readRDS("./data/sl19nbayes.rds")
+
+# columns to clean up values from:
+# hv246a (98)
+# hv246b (98)
+# hv246d (98)
+# hv246e (98)
+# hv246f (98)
+# looks like 95 or more is missing / unknown
+# copy data frame to be manipulated
+df <- sl19nbayes
+df <- na.omit(df) # remove NA values
+# str(df)
+
+# remove labels to be able to math
+library(haven)
+df <- zap_labels(df)
+df <- df %>% mutate_at(allCols, as.integer)
+# str(df)
+
+# filter out "unknown" or "missing" values from survey
+library(dplyr)
+df <- df %>% filter(
+  hv246a < 95 &
+  hv246b < 95 &
+  hv246d < 95 &
+  hv246e < 95 &
+  hv246f < 95
+)
+
+# check for correlations between variables
+df <- df %>% mutate_at(allCols, as.integer)
+corr_matrix_pre <- cor(df, method = "pearson")
+library(corrplot)
+corrplot(corr_matrix_pre, type = "upper", 
+         tl.col = "black", tl.srt = 45)
+
+# remove 2 highly correlated variables
+dropCols <- c("hv012", "hv206", "hv209", "hv246e", "hv247") # members de jure, electricity, fridge, bank account
+df = df[,!(names(df) %in% dropCols)]
+corr_matrix_post <- cor(df, method = "pearson")
+corrplot(corr_matrix_post, type = "upper", 
+         tl.col = "black", tl.srt = 45)
+
+# convert categorical columns to factors
+factorCols <- c("hv207","hv208","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv270a")
+df <- df %>% mutate_at(factorCols, as.factor)
+
+# str(df)
+summary(df)
+
+# export clean record data format
+saveRDS(df, "./data/sl19nbayesClean.rds")
+```
+
+## Split Data into Balanced Training and Testing Samples
+```{r}
+# reread in object
+sl19nbayesClean <- readRDS("./data/sl19nbayesClean.rds")
+df <- sl19nbayesClean
+
+# rename target variable to "label"
+colnames(df)[colnames(df) == "hv270a"] ="label"
+
+# ensure data is balanced
+summary(df$label)
+plot(df$label, main="Wealth Index of All Data", xlab="Wealth Index Group", ylab="# of Households", col="purple") # region
+
+
+# split into test and train data
+f = 4/5
+n = nrow(df)
+set.seed(44)
+
+# random sample without replacement
+train <- sample(n, n*f, replace=FALSE)
+trainDFnbayes <- df[train,]
+testDFnbayes <- df[-train,]
+
+# ensure it's still balanced
+plot(trainDFnbayes$label, main="Wealth Index of Training Sample", xlab="Wealth Index Group", ylab="# of Households", col="darkgreen") # region
+plot(testDFnbayes$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
+
+# save labels
+testLabelsNbayes <- testDFnbayes$label
+trainLabelsNbayes <- trainDFnbayes$label
+saveRDS(testLabelsNbayes, "./data/testLabelsNbayes.rds")
+saveRDS(trainLabelsNbayes, "./data/trainLabelsNbayes.rds")
+
+# export samples
+saveRDS(testDFnbayes, "./data/testDFnbayes.rds")
+saveRDS(trainDFnbayes, "./data/trainDFnbayes.rds")
+```
+
+## Naive Bayes Analysis
+```{r}
+# read in training data frame
+trainDFnbayes <- readRDS("./data/trainDFnbayes.rds")
+testDFnbayes <- readRDS("./data/testDFnbayes.rds")
+
+# read in labels
+testLabelsNbayes <- readRDS("./data/testLabelsNbayes.rds")
+trainLabelsNbayes <- readRDS("./data/trainLabelsNbayes.rds")
+
+# remove labels
+testDFnbayes <- subset(testDFnbayes, select = -c(label))
+trainDFnbayes <- subset(trainDFnbayes, select = -c(label))
+
+# run naive bayes with "e1071"
+library(e1071)
+nb.e1071 <- naiveBayes(trainDFnbayes, trainLabelsNbayes, laplace = 1)
+nb.e1071.pred <- predict(nb.e1071, testDFnbayes)
+cmatrix <- table(nb.e1071.pred, testLabelsNbayes)
+plot(cmatrix)
+confusionMatrix(cmatrix)
+
+# run naive bayes with "naivebayes"
+# library(naivebayes)
+# nb.nb <- naive_bayes(label ~ ., data = trainDFnbayes, usekernel = T, laplace = 1)
+# plot(nb) 
+```

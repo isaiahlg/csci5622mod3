@@ -1,0 +1,9 @@
+ARM
+- Will need code to manipulate LHS and RHS
+- Will need to be able to visualize it
+
+Clustering
+- Hierachical Clustering
+- Should be a dendrogram with 10-15 nodes that's readable
+- Visualize Silhouette
+- Calculate Gini or entropy

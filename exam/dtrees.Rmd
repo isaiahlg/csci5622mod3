@@ -1,0 +1,162 @@
+---
+title: "DecisionTrees"
+author: "IsaiahLG"
+date: "3/8/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Import & Filter Data
+```{r}
+# read in RDS
+sl19 <- readRDS("./data/sl19small.rds")
+
+# asset columns of interest
+demCols <- c("hv010","hv011","hv012","hv014","hv216")
+assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
+targetCol <- c("hv270a")
+allCols <- c(demCols, assetCols, targetCol)
+
+# filter
+sl19dtree <- sl19[,allCols]
+
+# export to RDS
+saveRDS(sl19dtree, "./data/sl19dtree.rds")
+```
+
+## Prep data for DTree
+```{r}
+# reread in object
+sl19dtree <- readRDS("./data/sl19dtree.rds")
+
+# columns to clean up values from:
+# hv246a (98)
+# hv246b (98)
+# hv246d (98)
+# hv246e (98)
+# hv246f (98)
+# looks like 95 or more is missing / unknown
+# copy data frame to be manipulated
+df <- sl19dtree
+df <- na.omit(df) # remove NA values
+
+library(haven)
+df <- zap_labels(df)
+library(dplyr)
+df <- df %>% mutate_at(allCols, as.integer)
+
+# filter out "unknown" or "missing" values from survey
+df <- df %>% filter(
+  hv246a < 95 &
+  hv246b < 95 &
+  hv246c < 95 &
+  hv246d < 95 &
+  hv246e < 95 &
+  hv246f < 95
+)
+
+
+# convert categorical columns to factors
+factorCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e", "hv247","hv270a")
+df <- df %>% mutate_at(factorCols, as.factor)
+
+summary(df)
+
+# export clean record data format
+saveRDS(df, "./data/sl19dtreeClean.rds")
+```
+
+## Split Data into Balanced Training and Testing Samples
+```{r}
+# reread in object
+sl19dtreeClean <- readRDS("./data/sl19dtreeClean.rds")
+df <- sl19dtreeClean
+
+library(dplyr)
+# rename target variable to "label"
+colnames(df)[colnames(df) == "hv270a"] ="label"
+
+# ensure data is balanced
+summary(df$label)
+plot(df$label, main="Wealth Index of All Data", xlab="Wealth Index Group", ylab="# of Households", col="purple") # region
+
+
+# split into test and train data
+f = 4/5
+n = nrow(df)
+set.seed(44)
+
+# random sample without replacement
+train <- sample(n, n*f, replace=FALSE)
+traindf <- df[train,]
+testdf <- df[-train,]
+
+# ensure it's still balanced
+plot(traindf$label, main="Wealth Index of Training Sample", xlab="Wealth Index Group", ylab="# of Households", col="darkgreen") # region
+plot(testdf$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
+
+# export samples
+saveRDS(testdf, "./data/testdfdtrees.rds")
+saveRDS(traindf, "./data/traindfdtrees.rds")
+```
+
+## Decision Tree Analysis
+```{r}
+# read in training data frame
+traindf <- readRDS("./data/traindfdtrees.rds")
+
+# load rpart for dtree
+library(rpart)
+
+# run d-tree with all variables
+dt <- rpart(label ~ ., data = traindf, method="class")
+summary(dt)
+
+# determine the optimal cp
+plotcp(dt)
+
+# test on test df
+testdf <- readRDS("./data/testdfdtrees.rds")
+
+# remove target variable from testdf
+target <- testdf$label
+testdf <- testdf[,!names(df) %in% targetCol]
+
+# pred test labels
+pred = predict(dt, testdf, type = "class")
+
+# get confusion matrix
+library(caret)
+caret::confusionMatrix(pred, target, positive="true")
+
+# plot results
+library(rattle)
+rattle::fancyRpartPlot(dt, main="Decision Tree", cex=.5)
+
+# another dtree plot
+library(rpart.plot)
+rpart.plot(dt, extra= 106)
+```
+
+## 5-Fold Cross Validation
+```{r}
+library(caret)
+
+# specify cross validation method
+ctrl <- trainControl(method = "cv", number = 5)
+
+# run dtree multiple times
+dt5 <- train(label ~ ., data = traindf, method="rpart", trControl = ctrl)
+print(dt5)
+
+# retry d-tree with outputted c
+dt2 <- rpart(label ~ ., data = traindf, method="class", cp = 0.03441519)
+plotcp(dt2)
+pred2 = predict(dt2, testdf, type = "class")
+confusionMatrix(pred2, target, positive="true")
+fancyRpartPlot(dt, main="Decision Tree", cex=.5)
+```

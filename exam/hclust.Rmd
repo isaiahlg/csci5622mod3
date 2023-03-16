@@ -1,0 +1,65 @@
+---
+title: "hclust"
+author: "Isaiah Lyons-Galante"
+date: "2023-02-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import Data
+
+## Clean up data
+```{r}
+# read in RDS
+sl19 <- readRDS("./data/sl19small.rds")
+
+# numerical columns of interest
+numCols <- c("hv010","hv011","hv012","hv014","hv216")
+
+# filter
+sl19num <- sl19[,numCols]
+
+# filter down to 13 rows
+f = 1/50
+n = nrow(sl19num)
+set.seed(44)
+
+# random sample without replacement
+rows <- sample(n, f*n, replace=FALSE)
+sl19num <- sl19num[rows,]
+
+# export to RDS
+saveRDS(sl19num, "./data/sl19num.rds")
+```
+
+## Prep data for hierarchical clustering
+```{r}
+# reread in objects
+sl19num <- readRDS("./data/sl19num.rds")
+
+# calculate distances
+library(stats)
+library(stylo)
+
+df <- scale(sl19num)
+dist_euc <- stats::dist(df, method="minkowski", p=2)
+dist_cos <- stylo::dist.cosine(df)
+
+# perform clustering
+hist_euc <- stats::hclust(dist_euc, method="ward.D2")
+plot(hist_euc)
+rect.hclust(hist_euc, k=3)
+
+hist_cos <- stats::hclust(dist_cos, method="ward.D2")
+plot(hist_cos)
+rect.hclust(hist_cos, k=3)
+```
+
+## Elbow Check for Optimal Cluster Number
+```{r}
+library(factoextra)
+fviz_nbclust(df, kmeans, method='silhouette')
+```

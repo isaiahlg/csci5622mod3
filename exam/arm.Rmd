@@ -1,0 +1,156 @@
+---
+title: "arm"
+author: "Isaiah Lyons-Galante"
+date: "2023-02-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import Data
+
+## Filter for just columns of interest
+```{r}
+# read in RDS
+sl19 <- readRDS("./data/sl19small.rds")
+
+# asset columns of interest
+armCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
+
+# filter
+sl19arm <- sl19[,armCols]
+
+# export to RDS
+saveRDS(sl19arm, "./data/sl19arm.rds")
+```
+
+## Prep data for ARM
+```{r}
+library(haven)
+# reread in objects
+sl19arm <- readRDS("./data/sl19arm.rds")
+
+# inspect to understand structure
+summary(sl19arm)
+# str(sl19arm)
+
+# columns to clean up values from:
+# hv246a (98)
+# hv246b (98)
+# hv246d (98)
+# hv246e (98)
+# hv246f (98)
+# looks like 95 or more is missing / unknown
+
+# copy data frame to be manipulated
+df <- sl19arm
+df <- na.omit(df) # remove NA values
+df <- as.data.frame(lapply(df, as.integer)) # convert all columns to int
+
+# filter out "unknown" or "missing" values from survey
+library(dplyr)
+df <- df %>% filter(
+  hv246a < 95 &
+  hv246b < 95 &
+  hv246c < 95 &
+  hv246d < 95 &
+  hv246e < 95 &
+  hv246f < 95
+)
+
+
+# convert all non-zero values to 1
+df[df != 0] <- 1
+
+# convert 1s to words and 0s to null
+df <- as.data.frame(lapply(df,as.character)) # convert all columns to char
+df[df == "0"] <- NA # replace 0s with null
+
+# create vectors for conversion
+armCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
+keys <- c("electricity","radio","television","fridge","bicycle","motorcycle","car","landline","bednet","cellphone","watch","cart","boat","computer","cattle","cows","horses","goats","sheep","chickens","bank")
+
+# loop over columns, replace 1s with words
+for (i in 1:length(armCols)) {
+  df[armCols[i]][df[armCols[i]] == "1"] <- keys[i]
+}
+
+df <- as.data.frame(lapply(df, as.factor))
+
+# export clean record data format
+saveRDS(df, "./data/sl19words.rds")
+```
+
+## Convert from record to transaction data
+```{r}
+# read in nicely formatted record data
+words <- readRDS("./data/sl19words.rds")
+
+# convert df to basket
+library("arules")
+tx <- as(words, "transactions")
+
+saveRDS(tx, "./data/tx.rds")
+```
+
+## Perform ARM
+```{r}
+# read in transaction data
+tx <- readRDS("./data/tx.rds")
+inspect(tx[1:20])
+
+# use a prior to get the rules
+rules <- arules::apriori(tx, parameter = list(
+  support = 0.15,
+  confidence = 0.5,
+  minlen = 2
+))
+length(rules)
+
+# look at most frequent items
+itemFrequencyPlot(tx, topN=25, type="relative")
+
+# sort rules
+rules.supp <- sort(rules, by="support", decreasing = TRUE)
+rules.conf <- sort(rules, by="confidence", decreasing = TRUE)
+rules.lift <- sort(rules, by="lift", decreasing = TRUE)
+inspect(rules.supp[1:15])
+inspect(rules.conf[1:15])
+inspect(rules.lift[1:15])
+
+## Selecting or targeting specific rules  RHS
+cellRules <- arules::apriori(data=tx ,parameter = list(  
+  support = 0.15,
+  confidence = 0.5,
+  minlen = 2),
+  appearance = list(default="lhs", rhs="hv243a=cellphone")
+ )
+cellRules <- sort(cellRules, decreasing=TRUE, by="confidence")
+inspect(cellRules)
+
+## Selecting or targeting specific rules  RHS
+radioRules <- arules::apriori(data=tx, parameter = list(  
+  support = 0.15,
+  confidence = 0.5,
+  minlen = 2),
+  appearance = list(default="rhs", lhs="hv207=radio")
+ )
+radioRules <- sort(radioRules, decreasing=TRUE, by="confidence")
+inspect(radioRules)
+
+```
+
+## Visualize Results
+```{r}
+# detach("package:arulesViz", unload=TRUE)
+# detach("package:arules", unload=TRUE)
+# library(arules)
+library(arulesViz)
+
+# visualize them
+plot(head(rules.lift, 15), method="graph", engine="htmlwidget")
+```
+
+

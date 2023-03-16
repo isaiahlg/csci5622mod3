@@ -1,1 +1,59 @@
-This script is for cleaning data
+---
+title: "Cleaning Data"
+author: "IsaiahLG"
+date: "3/15/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Import Data
+
+### Using the package rdhs
+```{r}
+# import necessary library
+library(rdhs)
+
+# set credentials for accessing DHS API
+set_rdhs_config(email = "isaiah.lyons-galante@colorado.edu",
+                project = "Machine Learning Class Project")
+
+# download actual datasets
+downloads <- get_datasets("SLHR7AFL.ZIP")
+
+# read in the dataset
+sl19 <- readRDS(downloads$SLHR7AFL)
+
+# get the variable labels for all column headers
+var_labels <- get_variable_labels(sl19)
+# head(var_labels) # 3455 rows now, just two columns, variable and description
+
+# export data and labels to CSV for visual inspection and usability in other programs
+saveRDS(var_labels, "./data/var_labels.rds")
+saveRDS(sl19, "./data/sl19.rds")
+```
+
+## Reduce number of rows
+```{r}
+# read in data
+sl19 <- readRDS("./data/sl19.rds")
+df <- sl19
+
+# split into test and train data
+f = 1/10
+n = nrow(df)
+set.seed(44)
+
+# random sample without replacement
+rows <- sample(n, n*f, replace=FALSE)
+df <- df[rows,]
+
+# filter out uninteresting columns
+cols <- c("hv000","hv001","hv006","hv007","hv010","hv011","hv012","hv013","hv014","hv024","hv025","hv040","hv045c","hv201","hv204","hv205","hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv213","hv214","hv215","hv216","hv217","hv219","hv220","hv221","hv226","hv227","hv230a","hv237","hv241","hv243a","hv243b","hv243c","hv243d","hv243e","hv244","hv245","hv246","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247","hv270","hv271","hv270a","hv271a","hml1")
+df <- df[,cols]
+
+saveRDS(df, "./data/sl19small.rds")
+```

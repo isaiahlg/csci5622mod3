@@ -1,0 +1,112 @@
+---
+title: "Exploratory Data Analysis"
+author: "IsaiahLG"
+date: "1/31/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summarize data
+
+
+```{r}
+library(tidyverse)
+# import data
+df <- readRDS("./data/sl19small.rds")
+n <- nrow(df)
+
+factorCols <- c("hv000","hv001","hv006","hv007","hv024","hv025","hv045c","hv201","hv205","hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv213","hv214","hv215","hv217","hv219","hv221","hv226","hv227","hv230a","hv237","hv241","hv243a","hv243b","hv243c","hv243d","hv243e","hv244","hv246","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247","hv270","hv270a")
+df <- df %>% mutate_at(factorCols, as.factor)
+```
+
+### Histograms
+```{r}
+# histograms
+
+hist(df$hv040, main="Altitude (m)") # altitude in meters
+plot(df$hv024, main="Region") # region
+plot(df$hv045c, main="Native Language")
+
+ilg_hist <- function(x, bins, label, fill) {
+  return(ggplot() + 
+      geom_histogram(aes(x), color="black", fill=fill, bins=bins) +
+      xlab(label) +
+      ylab("Count") +
+      ggtitle(label) +
+      theme_bw()
+  )
+}
+
+
+household <- ilg_hist(df$hv012, 33, "# Household Members", "purple")
+household
+women <- ilg_hist(df$hv010, 11, "# Women aged 15-49", "purple")
+women
+men <- ilg_hist(df$hv011, 11, "# Men aged 15-49", "purple")
+men
+children <- ilg_hist(df$hv014, 10, "# Children under 5 y.o.", "purple")
+children
+
+altitude <- ilg_hist(df$hv040, 30, "Altitude", "blue")
+altitude
+
+timetowater <- ilg_hist(df$hv204, 30, "Time to Water Source", "darkgreen")
+timetowater # filter out high "unknowns"
+```
+
+Bar Charts
+```{r}
+
+ilg_bar <- function(x, label, fill) {
+  return(ggplot() + 
+      geom_bar(aes(x), color="black", fill=fill) +
+      xlab(label) +
+      ylab("Count") +
+      ggtitle(label) +
+      theme_bw()
+  )
+}
+
+region <- ilg_bar(df$hv024, "Region", "blue")
+region
+
+language <- ilg_bar(df$hv045c, "Language", "blue")
+language
+
+watersource <- ilg_bar(df$hv201, "Source of Drinking Water", "darkgreen")
+watersource
+
+
+```
+
+Pie Charts
+```{r}
+# pie charts of asset ownership
+elec <- sum(df$hv206 == "1")
+radio <- sum(df$hv207 == "1")
+tele <- sum(df$hv208 == "1")
+fridge <- sum(df$hv209 == "1")
+bicycle <- sum(df$hv210 == "1")
+motorcycle <- sum(df$hv211 == "1")
+car <- sum(df$hv212 == "1")
+```
+
+Multivariable Bar Chart
+```{r}
+# bar chart of asset ownership
+counts <- c(elec,radio,tele,fridge,bicycle,motorcycle,car)
+labels <- c("Electricity", "Radio", "Television", "Fridge", "Bicycle", "Motorcyle", "Car")
+assets <- data.frame(asset=labels, count=counts)
+ggplot(assets) +
+  geom_bar(aes(y=count, x=asset), fill="purple", stat='identity') +
+  ggtitle('Asset Ownership')+
+  xlab('Asset') +
+  ylab('Count') +
+  ylim(0,1000) + 
+  theme_bw() +
+  scale_color_brewer(palette="Dark2")+
+  geom_hline(yintercept=n, color="gray")
+```
