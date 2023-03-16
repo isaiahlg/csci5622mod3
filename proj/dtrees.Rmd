@@ -125,14 +125,14 @@ plot(traindf$label, main="Wealth Index of Training Sample", xlab="Wealth Index G
 plot(testdf$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
 
 # export samples
-saveRDS(testdf, "./data/testdf.rds")
-saveRDS(traindf, "./data/traindf.rds")
+saveRDS(testdf, "./data/testdfdtrees.rds")
+saveRDS(traindf, "./data/traindfdtrees.rds")
 ```
 
 ## Decision Tree Analysis
 ```{r}
 # read in training data frame
-traindf <- readRDS("./data/traindf.rds")
+traindf <- readRDS("./data/traindfdtrees.rds")
 
 # load rpart for dtree
 library(rpart)
@@ -145,7 +145,7 @@ summary(dt)
 plotcp(dt)
 
 # test on test df
-testdf <- readRDS("./data/testdf.rds")
+testdf <- readRDS("./data/testdfdtrees.rds")
 
 # remove target variable from testdf
 target <- testdf$label
