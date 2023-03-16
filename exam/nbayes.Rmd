@@ -18,10 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
 sl19 <- readRDS("./data/sl19small.rds")
 
 # asset columns of interest
-demCols <- c("hv010","hv011","hv012","hv014","hv216")
-assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246d","hv246e","hv246f","hv247")
+assetCols <- c("hv207","hv208","hv211","hv243a","hv243b","hv243e")
 targetCol <- c("hv270a")
-allCols <- c(demCols, assetCols, targetCol)
+allCols <- c(assetCols, targetCol)
 
 # filter
 sl19nbayes <- sl19[,allCols]
@@ -53,15 +52,15 @@ df <- zap_labels(df)
 df <- df %>% mutate_at(allCols, as.integer)
 # str(df)
 
-# filter out "unknown" or "missing" values from survey
-library(dplyr)
-df <- df %>% filter(
-  hv246a < 95 &
-  hv246b < 95 &
-  hv246d < 95 &
-  hv246e < 95 &
-  hv246f < 95
-)
+# # filter out "unknown" or "missing" values from survey
+# library(dplyr)
+# df <- df %>% filter(
+#   hv246a < 95 &
+#   hv246b < 95 &
+#   hv246d < 95 &
+#   hv246e < 95 &
+#   hv246f < 95
+# )
 
 # check for correlations between variables
 df <- df %>% mutate_at(allCols, as.integer)
@@ -70,15 +69,15 @@ library(corrplot)
 corrplot(corr_matrix_pre, type = "upper", 
          tl.col = "black", tl.srt = 45)
 
-# remove 2 highly correlated variables
-dropCols <- c("hv012", "hv206", "hv209", "hv246e", "hv247") # members de jure, electricity, fridge, bank account
-df = df[,!(names(df) %in% dropCols)]
-corr_matrix_post <- cor(df, method = "pearson")
-corrplot(corr_matrix_post, type = "upper", 
-         tl.col = "black", tl.srt = 45)
+# # remove 2 highly correlated variables
+# dropCols <- c("hv012", "hv206", "hv209", "hv246e", "hv247") # members de jure, electricity, fridge, bank account
+# df = df[,!(names(df) %in% dropCols)]
+# corr_matrix_post <- cor(df, method = "pearson")
+# corrplot(corr_matrix_post, type = "upper", 
+#          tl.col = "black", tl.srt = 45)
 
 # convert categorical columns to factors
-factorCols <- c("hv207","hv208","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv270a")
+factorCols <- c("hv207","hv208","hv211","hv243a","hv243b","hv243e","hv270a")
 df <- df %>% mutate_at(factorCols, as.factor)
 
 # str(df)
@@ -143,7 +142,7 @@ trainDFnbayes <- subset(trainDFnbayes, select = -c(label))
 
 # run naive bayes with "e1071"
 library(e1071)
-nb.e1071 <- naiveBayes(trainDFnbayes, trainLabelsNbayes, laplace = 1)
+(nb.e1071 <- naiveBayes(trainDFnbayes, trainLabelsNbayes, laplace = 1))
 nb.e1071.pred <- predict(nb.e1071, testDFnbayes)
 cmatrix <- table(nb.e1071.pred, testLabelsNbayes)
 plot(cmatrix)

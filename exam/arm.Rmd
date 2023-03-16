@@ -122,12 +122,12 @@ inspect(rules.lift[1:15])
 
 ## Selecting or targeting specific rules  RHS
 cellRules <- arules::apriori(data=tx ,parameter = list(  
-  support = 0.15,
-  confidence = 0.5,
+  support = 0.01,
+  confidence = 0.01,
   minlen = 2),
-  appearance = list(default="lhs", rhs="hv243a=cellphone")
+  appearance = list(default="rhs", lhs="hv243a=cellphone")
  )
-cellRules <- sort(cellRules, decreasing=TRUE, by="confidence")
+cellRules <- sort(cellRules, decreasing=TRUE, by="lift")
 inspect(cellRules)
 
 ## Selecting or targeting specific rules  RHS
