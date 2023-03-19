@@ -145,8 +145,17 @@ library(rpart)
 dt <- rpart(label ~ ., data = traindf, method="class")
 summary(dt)
 
-# determine the optimal cp
-plotcp(dt)
+# plot results
+library(rattle)
+rattle::fancyRpartPlot(dt, main="Decision Tree", cex=.5)
+
+# another dtree plot
+library(rpart.plot)
+rpart.plot(dt, extra=104, main="Decision Tree")
+
+# inspect cp
+printcp(dt)
+plotcp(dt, main="Complexity Parameter")
 
 # test on test df
 testdf <- readRDS("./data/testdfdtrees.rds")
@@ -159,16 +168,72 @@ testdf <- testdf[,!names(df) %in% targetCol]
 pred = predict(dt, testdf, type = "class")
 
 # get confusion matrix
-library(caret)
-caret::confusionMatrix(pred, target, positive="true")
 
-# plot results
-library(rattle)
-rattle::fancyRpartPlot(dt, main="Decision Tree", cex=.5)
+# show confusion matrix values
+cmatrix <- table(pred, target)
+library(caret)
+caret::confusionMatrix(cmatrix)
+
+# plot confusion matrix
+# blocks
+plot(cmatrix, main = "Confusion Matrix Block Map")
+
+# heatmap
+cm_df <- data.frame(cmatrix)
+ggplot(data=cm_df, aes(x = pred, y = target)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1,  colour="white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_bw() + 
+  scale_y_discrete(limits = rev(levels(target))) +
+  labs(title="Confusion Matrix Heatmap")
+
+```
+
+## Create a Deeper Tree
+```{r}
+# read in training data frame
+traindf <- readRDS("./data/traindfdtrees.rds")
+
+# tune the second model's hyper parameters
+# Arguments:
+# -minsplit: Set the minimum number of observations in the node before the algorithm perform a split
+# -minbucket: Set the minimum number of observations in the final note i.e. the leaf
+# -maxdepth: Set the maximum depth of any node of the final tree. The root node is treated a depth 0
+# -cp: Set the complexity parameter. This number determines the point at which the tree will stop splitting nodes. The smaller the number means the more nodes.
+control <- rpart.control(minsplit = 1, minbucket = 1, maxdepth = 10)
+cp <- 0.005
+
+# run d-tree with all variables
+dt2 <- rpart(label ~ ., data = traindf, cp=cp, method="class")
+summary(dt2)
+rpart.plot(dt2, extra=104, main="Decision Tree with cp=0.005")
+
+# pull in and prep test data
+testdf <- readRDS("./data/testdfdtrees.rds")
+target <- testdf$label
+testdf <- testdf[,!names(df) %in% targetCol]
+
+# run prediction
+pred2 = predict(dt, testdf, type = "class")
+
+# show confusion matrix values
+cmatrix2 <- table(pred2, target)
+caret::confusionMatrix(cmatrix2)
+plot(cmatrix2, main = "Confusion Matrix Block Map")
+cm_df2 <- data.frame(cmatrix2)
+ggplot(data=cm_df2, aes(x = pred2, y = target)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1,  colour="white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_bw() + 
+  scale_y_discrete(limits = rev(levels(target))) +
+  labs(title="Confusion Matrix Heatmap")
 ```
 
 ## 5-Fold Cross Validation
 ```{r}
+# library for cross validation w/ Decision Tree
 library(caret)
 
 # specify cross validation method
@@ -177,11 +242,114 @@ ctrl <- trainControl(method = "cv", number = 5)
 # run dtree multiple times
 dt5 <- train(label ~ ., data = traindf, method="rpart", trControl = ctrl)
 print(dt5)
+rpart.plot(dt5$finalModel, extra=104, main="Decision Tree with 5-Fold Cross Validation")
 
-# retry d-tree with outputted c
-dt2 <- rpart(label ~ ., data = traindf, method="class", cp = 0.03441519)
-plotcp(dt2)
-pred2 = predict(dt2, testdf, type = "class")
-confusionMatrix(pred2, target, positive="true")
-fancyRpartPlot(dt, main="Decision Tree", cex=.5)
+# pull in and prep test data
+testdf <- readRDS("./data/testdfdtrees.rds")
+target <- testdf$label
+testdf <- testdf[,!names(df) %in% targetCol]
+
+# run prediction
+pred5 = predict(dt5, testdf)
+
+# show confusion matrix values
+cmatrix5 <- table(pred5, target)
+caret::confusionMatrix(cmatrix5)
+plot(cmatrix5, main = "Confusion Matrix Block Map")
+cm_df5 <- data.frame(cmatrix2)
+ggplot(data=cm_df5, aes(x = pred5, y = target)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1, colour="white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_bw() + 
+  scale_y_discrete(limits = rev(levels(target))) +
+  labs(title="Confusion Matrix Heatmap")
+```
+## Try with a couple extra variables
+```{r}
+# factors: "hv205","hv213","hv214","hv215", "hv244"
+# num: "hv245"
+
+# read in RDS
+sl19 <- readRDS("./data/sl19.rds")
+
+# asset columns of interest
+demCols <- c("hv010","hv011","hv012","hv014","hv216")
+assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
+targetCol <- c("hv270a")
+additionalCols <- c("hv205","hv213","hv214","hv215", "hv244", "hv245")
+allCols2 <- c(demCols, assetCols, targetCol, additionalCols)
+
+# filter
+sl19dtree2 <- sl19[,allCols2]
+saveRDS(sl19dtree2, "./data/sl19dtree2.rds")
+
+# clean up values
+df <- sl19dtree2
+df$hv245 <- df$hv245 %>% replace(is.na(.), 0) # insert 0s for ag land
+df <- na.omit(df) # remove NA values
+df <- zap_labels(df) # remove lables
+df <- df %>% mutate_at(allCols2, as.integer) # turn into numbers for filtering
+df <- df %>% filter( # filter out "unknown" or "missing" values from survey
+  hv246a < 95 &
+  hv246b < 95 &
+  hv246c < 95 &
+  hv246d < 95 &
+  hv246e < 95 &
+  hv246f < 95 &
+  hv213 < 95 &
+  hv214 < 95 &
+  hv245 < 951
+)
+# convert categorical columns to factors
+factorCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e", "hv247","hv270a", "hv205","hv213","hv214","hv215", "hv244")
+df <- df %>% mutate_at(factorCols, as.factor)
+saveRDS(df, "./data/sl19dtreeClean2.rds")
+
+# split data into test/train
+sl19dtreeClean2 <- readRDS("./data/sl19dtreeClean2.rds")
+df <- sl19dtreeClean2
+colnames(df)[colnames(df) == "hv270a"] ="label"
+
+# split into test and train data
+f = 4/5
+n = nrow(df)
+set.seed(44)
+
+# random sample without replacement
+train <- sample(n, n*f, replace=FALSE)
+traindf <- df[train,]
+testdf <- df[-train,]
+
+# export samples
+saveRDS(testdf, "./data/testdfdtrees2.rds")
+saveRDS(traindf, "./data/traindfdtrees2.rds")
+traindf <- readRDS("./data/traindfdtrees2.rds")
+
+# run d-tree with all variables
+dt3 <- rpart(label ~ ., data = traindf, method="class")
+summary(dt3)
+rpart.plot(dt3, extra=104, main="Decision Tree with more Variables")
+
+# pull in and prep test data
+testdf <- readRDS("./data/testdfdtrees2.rds")
+target <- testdf$label
+testdf <- testdf[,!names(df) %in% targetCol]
+
+# run prediction
+pred3 = predict(dt3, testdf, type = "class")
+
+# show confusion matrix values
+cmatrix3 <- table(pred3, target)
+caret::confusionMatrix(cmatrix3)
+plot(cmatrix3, main = "Confusion Matrix Block Map")
+cm_df3 <- data.frame(cmatrix3)
+ggplot(data=cm_df3, aes(x = pred3, y = target)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1, colour="white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_bw() + 
+  scale_y_discrete(limits = rev(levels(target))) +
+  labs(title="Confusion Matrix Heatmap")
+
 ```

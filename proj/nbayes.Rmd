@@ -131,7 +131,6 @@ colnames(df)[colnames(df) == "hv270a"] ="label"
 summary(df$label)
 plot(df$label, main="Wealth Index of All Data", xlab="Wealth Index Group", ylab="# of Households", col="purple") # region
 
-
 # split into test and train data
 f = 4/5
 n = nrow(df)
