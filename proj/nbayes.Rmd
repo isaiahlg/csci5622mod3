@@ -40,92 +40,74 @@ saveRDS(sl19, "./data/sl19.rds")
 ```{r}
 # read in RDS
 sl19 <- readRDS("./data/sl19.rds")
-var_labels <- readRDS("./data/var_labels.rds")
-
-# TODO add in other asset columns like landownership that are a little bit dirtier
 
 # asset columns of interest
-demCols <- c("hv010","hv011","hv012","hv014","hv216")
-assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
-targetCol <- c("hv270a")
-allCols <- c(demCols, assetCols, targetCol)
+assetCols <- c("hv205","hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv213","hv214","hv215","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv244", "hv245","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
+targetCol <- c("hv270")
+allCols <- c(assetCols, targetCol)
 
 # filter
-sl19nbayes <- sl19[,allCols]
-varsNbayes <- var_labels[allCols,]
+sl19nb <- sl19[,allCols]
 
 # export to RDS
-saveRDS(sl19nbayes, "./data/sl19nbayes.rds")
-saveRDS(varsNbayes, "./data/varsNbayes.rds")
+saveRDS(sl19nb, "./data/sl19nb.rds")
 ```
 
 ## Prep data for Naive Bayes by Cleaning and Converting to Factor
 ```{r}
-# reread in object
-sl19nbayes <- readRDS("./data/sl19nbayes.rds")
+sl19bayes <- readRDS("./data/sl19nb.rds")
+df <- sl19bayes
 
-# columns to clean up values from:
-# hv246a (98)
-# hv246b (98)
-# hv246d (98)
-# hv246e (98)
-# hv246f (98)
-# looks like 95 or more is missing / unknown
-# copy data frame to be manipulated
-df <- sl19nbayes
+df$hv245 <- df$hv245 %>% replace(is.na(.), 0) # insert 0s for ag land
 df <- na.omit(df) # remove NA values
-# str(df)
-
-# remove labels to be able to math
-library(haven)
-df <- zap_labels(df)
-df <- df %>% mutate_at(allCols, as.integer)
-# str(df)
-
-# filter out "unknown" or "missing" values from survey
+df <- haven::zap_labels(df) # remove lables
 library(dplyr)
-df <- df %>% filter(
+df <- df %>% mutate_at(allCols, as.integer) # turn into numbers for filtering
+df <- df %>% filter( # filter out "unknown" or "missing" values from survey
   hv246a < 95 &
   hv246b < 95 &
   hv246c < 95 &
   hv246d < 95 &
   hv246e < 95 &
-  hv246f < 95
+  hv246f < 95 &
+  hv213 < 95 &
+  hv214 < 95 &
+  hv245 < 951
 )
+
 
 # check for correlations between variables
 df <- df %>% mutate_at(allCols, as.integer)
 corr_matrix_pre <- cor(df, method = "pearson")
-library(corrplot)
-corrplot(corr_matrix_pre, type = "upper", order = "hclust", 
-         tl.col = "black", tl.srt = 45)
+corrplot::corrplot(corr_matrix_pre, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, main="Correlation Plot before Filtering")
 
 # remove 2 highly correlated variables
 dropCols <- c("hv012", "hv206", "hv209", "hv246e", "hv247") # members de jure, electricity, fridge, bank account
 df = df[,!(names(df) %in% dropCols)]
 corr_matrix_post <- cor(df, method = "pearson")
-corrplot(corr_matrix_post, type = "upper", order = "hclust", 
-         tl.col = "black", tl.srt = 45)
+corrplot::corrplot(corr_matrix_post, type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, main="Correlation Plot after Filtering")
 
 # convert categorical columns to factors
-factorCols <- c("hv207","hv208","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv270a")
+factorCols <- c("hv207","hv208","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv270", "hv205","hv213","hv214","hv215", "hv244")
 df <- df %>% mutate_at(factorCols, as.factor)
 
 # str(df)
 summary(df)
 
 # export clean record data format
-saveRDS(df, "./data/sl19nbayesClean.rds")
+saveRDS(df, "./data/sl19nbClean.rds")
 ```
 
 ## Split Data into Balanced Training and Testing Samples
 ```{r}
 # reread in object
-sl19nbayesClean <- readRDS("./data/sl19nbayesClean.rds")
-df <- sl19nbayesClean
+sl19nbClean <- readRDS("./data/sl19nbClean.rds")
+df <- sl19nbClean
 
 # rename target variable to "label"
-colnames(df)[colnames(df) == "hv270a"] ="label"
+colnames(df)[colnames(df) == "hv270"] ="label"
 
 # ensure data is balanced
 summary(df$label)
@@ -138,48 +120,48 @@ set.seed(44)
 
 # random sample without replacement
 train <- sample(n, n*f, replace=FALSE)
-trainDFnbayes <- df[train,]
-testDFnbayes <- df[-train,]
+trainDFnb <- df[train,]
+testDFnb <- df[-train,]
 
 # ensure it's still balanced
-plot(trainDFnbayes$label, main="Wealth Index of Training Sample", xlab="Wealth Index Group", ylab="# of Households", col="darkgreen") # region
-plot(testDFnbayes$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
+plot(trainDFnb$label, main="Wealth Index of Training Sample", xlab="Wealth Index Group", ylab="# of Households", col="darkgreen") # region
+plot(testDFnb$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
 
 # save labels
-testLabelsNbayes <- testDFnbayes$label
-trainLabelsNbayes <- trainDFnbayes$label
-saveRDS(testLabelsNbayes, "./data/testLabelsNbayes.rds")
-saveRDS(trainLabelsNbayes, "./data/trainLabelsNbayes.rds")
+testLabelsnb <- testDFnb$label
+trainLabelsnb <- trainDFnb$label
+saveRDS(testLabelsnb, "./data/testLabelsnb.rds")
+saveRDS(trainLabelsnb, "./data/trainLabelsnb.rds")
 
 # export samples
-saveRDS(testDFnbayes, "./data/testDFnbayes.rds")
-saveRDS(trainDFnbayes, "./data/trainDFnbayes.rds")
+saveRDS(testDFnb, "./data/testDFnb.rds")
+saveRDS(trainDFnb, "./data/trainDFnb.rds")
 ```
 
 ## Naive Bayes Analysis
 ```{r}
 # read in training data frame
-trainDFnbayes <- readRDS("./data/trainDFnbayes.rds")
-testDFnbayes <- readRDS("./data/testDFnbayes.rds")
+trainDFnb <- readRDS("./data/trainDFnb.rds")
+testDFnb <- readRDS("./data/testDFnb.rds")
 
 # read in labels
-testLabelsNbayes <- readRDS("./data/testLabelsNbayes.rds")
-trainLabelsNbayes <- readRDS("./data/trainLabelsNbayes.rds")
+testLabelsnb <- readRDS("./data/testLabelsnb.rds")
+trainLabelsnb <- readRDS("./data/trainLabelsnb.rds")
 
 # remove labels
-testDFnbayes <- subset(testDFnbayes, select = -c(label))
-trainDFnbayes <- subset(trainDFnbayes, select = -c(label))
+testDFnb <- subset(testDFnb, select = -c(label))
+trainDFnb <- subset(trainDFnb, select = -c(label))
 
 # run naive bayes with "e1071"
 library(e1071)
-nb.e1071 <- naiveBayes(trainDFnbayes, trainLabelsNbayes, laplace = 1)
-nb.e1071.pred <- predict(nb, testDFnbayes)
-cmatrix <- table(nb.e1071.pred, testLabelsNbayes)
+nb.e1071 <- naiveBayes(trainDFnb, trainLabelsnb, laplace = 1)
+nb.e1071.pred <- predict(nb, testDFnb)
+cmatrix <- table(nb.e1071.pred, testLabelsnb)
 plot(cmatrix)
 confusionMatrix(cmatrix)
 
 # run naive bayes with "naivebayes"
 # library(naivebayes)
-# nb.nb <- naive_bayes(label ~ ., data = trainDFnbayes, usekernel = T, laplace = 1)
+# nb.nb <- naive_bayes(label ~ ., data = trainDFnb, usekernel = T, laplace = 1)
 # plot(nb) 
 ```
