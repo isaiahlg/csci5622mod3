@@ -45,7 +45,7 @@ var_labels <- readRDS("./data/var_labels.rds")
 # asset columns of interest
 demCols <- c("hv010","hv011","hv012","hv014","hv216")
 assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
-targetCol <- c("hv270a")
+targetCol <- c("hv270")
 allCols <- c(demCols, assetCols, targetCol)
 
 # filter
@@ -53,14 +53,14 @@ sl19dtree <- sl19[,allCols]
 varsDtree <- var_labels[allCols,]
 
 # export to RDS
-saveRDS(sl19dtree, "./data/sl19dtree.rds")
-saveRDS(varsDtree, "./data/varsDtree.rds")
+saveRDS(sl19dtree, "./data/sl19dtreeV2.rds")
+saveRDS(varsDtree, "./data/varsDtreeV2.rds")
 ```
 
 ## Prep data for DTree
 ```{r}
 # reread in object
-sl19dtree <- readRDS("./data/sl19dtree.rds")
+sl19dtree <- readRDS("./data/sl19dtreeV2.rds")
 
 # columns to clean up values from:
 # hv246a (98)
@@ -90,24 +90,24 @@ df <- df %>% filter(
 
 
 # convert categorical columns to factors
-factorCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e", "hv247","hv270a")
+factorCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e", "hv247","hv270")
 df <- df %>% mutate_at(factorCols, as.factor)
 
 summary(df)
 
 # export clean record data format
-saveRDS(df, "./data/sl19dtreeClean.rds")
+saveRDS(df, "./data/sl19dtreeCleanV2.rds")
 ```
 
 ## Split Data into Balanced Training and Testing Samples
 ```{r}
 # reread in object
-sl19dtreeClean <- readRDS("./data/sl19dtreeClean.rds")
+sl19dtreeClean <- readRDS("./data/sl19dtreeCleanV2.rds")
 df <- sl19dtreeClean
 
 library(dplyr)
 # rename target variable to "label"
-colnames(df)[colnames(df) == "hv270a"] ="label"
+colnames(df)[colnames(df) == "hv270"] ="label"
 
 # ensure data is balanced
 summary(df$label)
@@ -129,14 +129,14 @@ plot(traindf$label, main="Wealth Index of Training Sample", xlab="Wealth Index G
 plot(testdf$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
 
 # export samples
-saveRDS(testdf, "./data/testdfdtrees.rds")
-saveRDS(traindf, "./data/traindfdtrees.rds")
+saveRDS(testdf, "./data/testdfdtreesV2.rds")
+saveRDS(traindf, "./data/traindfdtreesV2.rds")
 ```
 
 ## Decision Tree Analysis
 ```{r}
 # read in training data frame
-traindf <- readRDS("./data/traindfdtrees.rds")
+traindf <- readRDS("./data/traindfdtreesV2.rds")
 
 # load rpart for dtree
 library(rpart)
@@ -158,7 +158,7 @@ printcp(dt)
 plotcp(dt, main="Complexity Parameter")
 
 # test on test df
-testdf <- readRDS("./data/testdfdtrees.rds")
+testdf <- readRDS("./data/testdfdtreesV2.rds")
 
 # remove target variable from testdf
 target <- testdf$label
@@ -193,7 +193,7 @@ ggplot(data=cm_df, aes(x = pred, y = target)) +
 ## Create a Deeper Tree
 ```{r}
 # read in training data frame
-traindf <- readRDS("./data/traindfdtrees.rds")
+traindf <- readRDS("./data/traindfdtreesV2.rds")
 
 # tune the second model's hyper parameters
 # Arguments:
@@ -210,7 +210,7 @@ summary(dt2)
 rpart.plot(dt2, extra=104, main="Decision Tree with cp=0.005")
 
 # pull in and prep test data
-testdf <- readRDS("./data/testdfdtrees.rds")
+testdf <- readRDS("./data/testdfdtreesV2.rds")
 target <- testdf$label
 testdf <- testdf[,!names(df) %in% targetCol]
 
@@ -245,7 +245,7 @@ print(dt5)
 rpart.plot(dt5$finalModel, extra=104, main="Decision Tree with 5-Fold Cross Validation")
 
 # pull in and prep test data
-testdf <- readRDS("./data/testdfdtrees.rds")
+testdf <- readRDS("./data/testdfdtreesV2.rds")
 target <- testdf$label
 testdf <- testdf[,!names(df) %in% targetCol]
 
@@ -276,13 +276,13 @@ sl19 <- readRDS("./data/sl19.rds")
 # asset columns of interest
 demCols <- c("hv010","hv011","hv012","hv014","hv216")
 assetCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
-targetCol <- c("hv270a")
+targetCol <- c("hv270")
 additionalCols <- c("hv205","hv213","hv214","hv215", "hv244", "hv245")
 allCols2 <- c(demCols, assetCols, targetCol, additionalCols)
 
 # filter
 sl19dtree2 <- sl19[,allCols2]
-saveRDS(sl19dtree2, "./data/sl19dtree2.rds")
+saveRDS(sl19dtree2, "./data/sl19dtree2V2.rds")
 
 # clean up values
 df <- sl19dtree2
@@ -302,14 +302,14 @@ df <- df %>% filter( # filter out "unknown" or "missing" values from survey
   hv245 < 951
 )
 # convert categorical columns to factors
-factorCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e", "hv247","hv270a", "hv205","hv213","hv214","hv215", "hv244")
+factorCols <- c("hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e", "hv247","hv270", "hv205","hv213","hv214","hv215", "hv244")
 df <- df %>% mutate_at(factorCols, as.factor)
-saveRDS(df, "./data/sl19dtreeClean2.rds")
+saveRDS(df, "./data/sl19dtreeClean2V2.rds")
 
 # split data into test/train
-sl19dtreeClean2 <- readRDS("./data/sl19dtreeClean2.rds")
+sl19dtreeClean2 <- readRDS("./data/sl19dtreeClean2V2.rds")
 df <- sl19dtreeClean2
-colnames(df)[colnames(df) == "hv270a"] ="label"
+colnames(df)[colnames(df) == "hv270"] ="label"
 
 # split into test and train data
 f = 4/5
@@ -322,9 +322,9 @@ traindf <- df[train,]
 testdf <- df[-train,]
 
 # export samples
-saveRDS(testdf, "./data/testdfdtrees2.rds")
-saveRDS(traindf, "./data/traindfdtrees2.rds")
-traindf <- readRDS("./data/traindfdtrees2.rds")
+saveRDS(testdf, "./data/testdfdtrees2V2.rds")
+saveRDS(traindf, "./data/traindfdtrees2V2.rds")
+traindf <- readRDS("./data/traindfdtrees2V2.rds")
 
 # run d-tree with all variables
 dt3 <- rpart(label ~ ., data = traindf, method="class")
@@ -332,7 +332,7 @@ summary(dt3)
 rpart.plot(dt3, extra=104, main="Decision Tree with more Variables")
 
 # pull in and prep test data
-testdf <- readRDS("./data/testdfdtrees2.rds")
+testdf <- readRDS("./data/testdfdtrees2V2.rds")
 target <- testdf$label
 testdf <- testdf[,!names(df) %in% targetCol]
 
