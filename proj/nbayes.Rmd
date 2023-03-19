@@ -58,10 +58,10 @@ saveRDS(sl19nb, "./data/sl19nb.rds")
 sl19bayes <- readRDS("./data/sl19nb.rds")
 df <- sl19bayes
 
+library(dplyr)
 df$hv245 <- df$hv245 %>% replace(is.na(.), 0) # insert 0s for ag land
 df <- na.omit(df) # remove NA values
 df <- haven::zap_labels(df) # remove lables
-library(dplyr)
 df <- df %>% mutate_at(allCols, as.integer) # turn into numbers for filtering
 df <- df %>% filter( # filter out "unknown" or "missing" values from survey
   hv246a < 95 &
@@ -77,12 +77,12 @@ df <- df %>% filter( # filter out "unknown" or "missing" values from survey
 
 
 # check for correlations between variables
-df <- df %>% mutate_at(allCols, as.integer)
+df <- df %>% mutate_at(names(df), as.integer)
 corr_matrix_pre <- cor(df, method = "pearson")
 corrplot::corrplot(corr_matrix_pre, type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, main="Correlation Plot before Filtering")
 
-# remove 2 highly correlated variables
+# remove 5 highly correlated variables
 dropCols <- c("hv012", "hv206", "hv209", "hv246e", "hv247") # members de jure, electricity, fridge, bank account
 df = df[,!(names(df) %in% dropCols)]
 corr_matrix_post <- cor(df, method = "pearson")
@@ -92,9 +92,6 @@ corrplot::corrplot(corr_matrix_post, type = "upper", order = "hclust",
 # convert categorical columns to factors
 factorCols <- c("hv207","hv208","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv270", "hv205","hv213","hv214","hv215", "hv244")
 df <- df %>% mutate_at(factorCols, as.factor)
-
-# str(df)
-summary(df)
 
 # export clean record data format
 saveRDS(df, "./data/sl19nbClean.rds")
@@ -107,7 +104,8 @@ sl19nbClean <- readRDS("./data/sl19nbClean.rds")
 df <- sl19nbClean
 
 # rename target variable to "label"
-colnames(df)[colnames(df) == "hv270"] ="label"
+label <- "hv270"
+colnames(df)[colnames(df) == label] ="label"
 
 # ensure data is balanced
 summary(df$label)
@@ -127,12 +125,6 @@ testDFnb <- df[-train,]
 plot(trainDFnb$label, main="Wealth Index of Training Sample", xlab="Wealth Index Group", ylab="# of Households", col="darkgreen") # region
 plot(testDFnb$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
 
-# save labels
-testLabelsnb <- testDFnb$label
-trainLabelsnb <- trainDFnb$label
-saveRDS(testLabelsnb, "./data/testLabelsnb.rds")
-saveRDS(trainLabelsnb, "./data/trainLabelsnb.rds")
-
 # export samples
 saveRDS(testDFnb, "./data/testDFnb.rds")
 saveRDS(trainDFnb, "./data/trainDFnb.rds")
@@ -144,24 +136,31 @@ saveRDS(trainDFnb, "./data/trainDFnb.rds")
 trainDFnb <- readRDS("./data/trainDFnb.rds")
 testDFnb <- readRDS("./data/testDFnb.rds")
 
-# read in labels
-testLabelsnb <- readRDS("./data/testLabelsnb.rds")
-trainLabelsnb <- readRDS("./data/trainLabelsnb.rds")
+# extract labels
+testLabelsnb <- testDFnb$label
+trainLabelsnb <- trainDFnb$label
 
-# remove labels
+# remove labels from test and train data
 testDFnb <- subset(testDFnb, select = -c(label))
 trainDFnb <- subset(trainDFnb, select = -c(label))
 
 # run naive bayes with "e1071"
 library(e1071)
-nb.e1071 <- naiveBayes(trainDFnb, trainLabelsnb, laplace = 1)
-nb.e1071.pred <- predict(nb, testDFnb)
-cmatrix <- table(nb.e1071.pred, testLabelsnb)
-plot(cmatrix)
-confusionMatrix(cmatrix)
+nb.e1071 <- e1071::naiveBayes(trainDFnb, trainLabelsnb, laplace = 1)
 
-# run naive bayes with "naivebayes"
-# library(naivebayes)
-# nb.nb <- naive_bayes(label ~ ., data = trainDFnb, usekernel = T, laplace = 1)
-# plot(nb) 
+# run model on test data to predict
+nb.e1071.pred <- stats::predict(nb.e1071, testDFnb)
+
+# calculate and visualize confusion matrix
+cmatrix <- table(nb.e1071.pred, testLabelsnb)
+caret::confusionMatrix(cmatrix)
+cm_df <- data.frame(cmatrix)
+library(tidyverse)
+ggplot2::ggplot(data=cm_df, aes(x = nb.e1071.pred, y = testLabelsnb)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1,  colour="white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_bw() + 
+  scale_y_discrete(limits = rev) +
+  labs(title="Confusion Matrix Heatmap")
 ```

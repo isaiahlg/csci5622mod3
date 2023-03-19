@@ -286,9 +286,10 @@ saveRDS(sl19dtree2, "./data/sl19dtree2V2.rds")
 
 # clean up values
 df <- sl19dtree2
+library(dplyr)
 df$hv245 <- df$hv245 %>% replace(is.na(.), 0) # insert 0s for ag land
 df <- na.omit(df) # remove NA values
-df <- zap_labels(df) # remove lables
+df <- haven::zap_labels(df) # remove lables
 df <- df %>% mutate_at(allCols2, as.integer) # turn into numbers for filtering
 df <- df %>% filter( # filter out "unknown" or "missing" values from survey
   hv246a < 95 &
@@ -327,8 +328,10 @@ saveRDS(traindf, "./data/traindfdtrees2V2.rds")
 traindf <- readRDS("./data/traindfdtrees2V2.rds")
 
 # run d-tree with all variables
+library(rpart)
 dt3 <- rpart(label ~ ., data = traindf, method="class")
 summary(dt3)
+library(rpart.plot)
 rpart.plot(dt3, extra=104, main="Decision Tree with more Variables")
 
 # pull in and prep test data
@@ -340,6 +343,8 @@ testdf <- testdf[,!names(df) %in% targetCol]
 pred3 = predict(dt3, testdf, type = "class")
 
 # show confusion matrix values
+library(caret)
+library(tidyverse)
 cmatrix3 <- table(pred3, target)
 caret::confusionMatrix(cmatrix3)
 plot(cmatrix3, main = "Confusion Matrix Block Map")

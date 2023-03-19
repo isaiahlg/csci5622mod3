@@ -1,0 +1,177 @@
+---
+title: "NaiveBayes"
+author: "IsaiahLG"
+date: "3/15/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Import Data
+
+### Using the package rdhs
+```{r}
+# import necessary library
+library(rdhs)
+
+# set credentials for accessing DHS API
+set_rdhs_config(email = "isaiah.lyons-galante@colorado.edu",
+                project = "Machine Learning Class Project")
+
+# download actual datasets
+downloads <- get_datasets("SLHR7AFL.ZIP")
+
+# read in the dataset
+sl19 <- readRDS(downloads$SLHR7AFL)
+
+# get the variable labels for all column headers
+var_labels <- get_variable_labels(sl19)
+# head(var_labels) # 3455 rows now, just two columns, variable and description
+
+# export data and labels to CSV for visual inspection and usability in other programs
+saveRDS(var_labels, "./data/var_labels.rds")
+saveRDS(sl19, "./data/sl19.rds")
+```
+
+## Filter for just columns of interest
+```{r}
+# read in RDS
+sl19 <- readRDS("./data/sl19.rds")
+
+# asset columns of interest
+assetCols <- c("hv205","hv206","hv207","hv208","hv209","hv210","hv211","hv212","hv213","hv214","hv215","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv244", "hv245","hv246a","hv246b","hv246c","hv246d","hv246e","hv246f","hv247")
+
+assetCols2 <- c("hv213", "hv214", "hv208", "hv205", "hv244", "hv245", "hv243a", "hv206", "hv209", "hv247", "hv215", "hv246f", "hv207", "hv216", "hv243b", "hv246d")
+targetCol <- c("hv270")
+allCols <- c(assetCols2, targetCol)
+
+# filter
+sl19nb <- sl19[,allCols]
+
+# export to RDS
+saveRDS(sl19nb, "./data/sl19nb.rds")
+```
+
+## Prep data for Naive Bayes by Cleaning and Converting to Factor
+```{r}
+sl19bayes <- readRDS("./data/sl19nb.rds")
+df <- sl19bayes
+
+library(dplyr)
+df$hv245 <- df$hv245 %>% replace(is.na(.), 0) # insert 0s for ag land
+df <- na.omit(df) # remove NA values
+df <- haven::zap_labels(df) # remove lables
+df <- df %>% mutate_at(allCols, as.integer) # turn into numbers for filtering
+df <- df %>% filter( # filter out "unknown" or "missing" values from survey
+  # hv246a < 95 &
+  # hv246b < 95 &
+  # hv246c < 95 &
+  hv246d < 95 &
+  # hv246e < 95 &
+  hv246f < 95 &
+  hv213 < 95 
+  # hv214 < 95 
+  # hv245 < 951
+)
+
+
+# check for correlations between variables
+df <- df %>% mutate_at(names(df), as.integer)
+corr_matrix_pre <- cor(df, method = "pearson")
+corrplot::corrplot(corr_matrix_pre, type = "upper", order = "hclust",
+         tl.col = "black", tl.srt = 45, main="Correlation Plot before Filtering")
+
+# remove 5 highly correlated variables
+dropCols <- c("hv012", "hv206", "hv209", "hv246e", "hv247") # members de jure, electricity, fridge, bank account
+df = df[,!(names(df) %in% dropCols)]
+corr_matrix_post <- cor(df, method = "pearson")
+corrplot::corrplot(corr_matrix_post, type = "upper", order = "hclust",
+         tl.col = "black", tl.srt = 45, main="Correlation Plot after Filtering")
+
+# library(ggplot2)
+# library(GGally)
+# ggpairs(df)
+
+# convert categorical columns to factors
+factorCols <- c("hv207","hv208","hv210","hv211","hv212","hv221","hv227","hv243a","hv243b","hv243c","hv243d","hv243e","hv270", "hv205","hv213","hv214","hv215", "hv244")
+
+# assetCols2 <- c("hv213", "hv214", "hv208", "hv205", "hv244", "hv245", "hv243a", "hv206", "hv209", "hv247", "hv215", "hv246f", "hv207", "hv216", "hv243b", "hv246d")
+factorCols2 <- c("hv208","hv243a","hv243b", "hv205","hv213","hv214","hv215", "hv244")
+df <- df %>% mutate_at(factorCols2, as.factor)
+
+# export clean record data format
+saveRDS(df, "./data/sl19nbClean.rds")
+```
+
+## Split Data into Balanced Training and Testing Samples
+```{r}
+# reread in object
+sl19nbClean <- readRDS("./data/sl19nbClean.rds")
+df <- sl19nbClean
+
+# rename target variable to "label"
+label <- "hv270"
+colnames(df)[colnames(df) == label] ="label"
+
+# ensure data is balanced
+summary(df$label)
+plot(df$label, main="Wealth Index of All Data", xlab="Wealth Index Group", ylab="# of Households", col="purple") # region
+
+# split into test and train data
+f = 4/5
+n = nrow(df)
+set.seed(44)
+
+# random sample without replacement
+train <- sample(n, n*f, replace=FALSE)
+trainDFnb <- df[train,]
+testDFnb <- df[-train,]
+
+# ensure it's still balanced
+plot(trainDFnb$label, main="Wealth Index of Training Sample", xlab="Wealth Index Group", ylab="# of Households", col="darkgreen") # region
+plot(testDFnb$label, main="Wealth Index of Testing Sample", xlab="Wealth Index Group", ylab="# of Households", col="blue") # region
+
+# export samples
+saveRDS(testDFnb, "./data/testDFnb.rds")
+saveRDS(trainDFnb, "./data/trainDFnb.rds")
+```
+
+## Naive Bayes Analysis
+```{r}
+# read in training data frame
+trainDFnb <- readRDS("./data/trainDFnb.rds")
+testDFnb <- readRDS("./data/testDFnb.rds")
+
+# extract labels
+testLabelsnb <- testDFnb$label
+trainLabelsnb <- trainDFnb$label
+
+# remove labels from test and train data
+testDFnb <- subset(testDFnb, select = -c(label))
+trainDFnb <- subset(trainDFnb, select = -c(label))
+
+# run naive bayes with "e1071"
+library(e1071)
+nb.e1071 <- e1071::naiveBayes(trainDFnb, trainLabelsnb, laplace = 1)
+
+# run model on test data to predict
+nb.e1071.pred <- stats::predict(nb.e1071, testDFnb)
+
+# calculate and visualize confusion matrix
+cmatrix <- table(nb.e1071.pred, testLabelsnb)
+caret::confusionMatrix(cmatrix)
+cm_df <- data.frame(cmatrix)
+library(tidyverse)
+ggplot2::ggplot(data=cm_df, aes(x = nb.e1071.pred, y = testLabelsnb)) +
+  geom_tile(aes(fill = Freq), colour = "white") +
+  geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1,  colour="white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_bw() +
+  scale_y_discrete(limits=rev) +
+  labs(title="Confusion Matrix Heatmap V2")
+```
+
+
