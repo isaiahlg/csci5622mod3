@@ -357,4 +357,17 @@ ggplot(data=cm_df3, aes(x = pred3, y = target)) +
   scale_y_discrete(limits = rev(levels(target))) +
   labs(title="Confusion Matrix Heatmap")
 
+df2 <- data.frame(imp = dt3$variable.importance)
+df3 <- df2 %>% 
+  tibble::rownames_to_column() %>% 
+  dplyr::rename("variable" = rowname) %>% 
+  dplyr::arrange(imp) %>%
+  dplyr::mutate(variable = forcats::fct_inorder(variable))
+ggplot2::ggplot(df3) +
+  geom_col(aes(x = variable, y = imp),
+           col = "black", fill="darkgreen", show.legend = F) +
+  coord_flip() +
+  scale_fill_grey() +
+  theme_bw()
+
 ```
